@@ -56,7 +56,7 @@
 
     <div class="container">
         <h1>Messaging Attachment Test Harness</h1>
-        <p>This page tests the <code>WAITING</code> chat status file attachment error using an unauthenticated token payload.</p>
+        <p>This page tests the <code>WAITING</code> chat status file attachment error using a deferred script loader.</p>
         
         <div class="status-box">
             <strong>Reproduction Steps:</strong>
@@ -69,67 +69,41 @@
         </div>
 
         <div id="authError" class="error-box">
-            <strong>Token Error:</strong> Unable to retrieve a guest token for the custom client deployment. If prompt persists, verify Connected App CORS settings.
+            <strong>Custom Client Endpoint Security Alert:</strong> The SCRT API endpoint blocked unauthenticated bootstrap script loading. To complete reproduction without credentials, run via the internal Salesforce Visualforce Page harness.
         </div>
     </div>
 
-    <!-- Salesforce Embedded Messaging Script -->
     <script type='text/javascript'>
-        async function fetchGuestJwtToken() {
-            const tokenEndpoint = 'https://skyhighsecurity28-dev-ed.develop.my.salesforce-scrt.com/embeddedservice/v1/embeddedmessaging/token';
-            try {
-                const response = await fetch(tokenEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        orgId: '00DHu0000018vvh',
-                        developerName: 'Web_Chat'
-                    })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.accessToken || data.jwt;
-                }
-            } catch (err) {
-                console.warn('Could not fetch dynamic guest JWT, proceeding with default bootstrap authorization:', err);
-            }
-            return null;
-        }
-
-        async function initEmbeddedMessaging() {
+        function initEmbeddedMessaging() {
             try {
                 embeddedservice_bootstrap.settings.language = 'en_US';
-                
-                // Fetch JWT Token to clear HTTP 401 Basic Auth popup
-                const guestToken = await fetchGuestJwtToken();
-
-                const config = {
-                    scrt2URL: 'https://skyhighsecurity28-dev-ed.develop.my.salesforce-scrt.com'
-                };
-
-                if (guestToken) {
-                    config.jwt = guestToken;
-                }
-
                 embeddedservice_bootstrap.init(
                     '00DHu0000018vvh',
                     'Web_Chat',
                     'https://skyhighsecurity28-dev-ed.develop.my.salesforce-scrt.com',
-                    config
+                    {
+                        scrt2URL: 'https://skyhighsecurity28-dev-ed.develop.my.salesforce-scrt.com'
+                    }
                 );
             } catch (err) {
                 console.error('Error loading Embedded Messaging: ', err);
                 document.getElementById('authError').style.display = 'block';
             }
-        };
-    </script>
-    <script 
-        type='text/javascript' 
-        src='https://skyhighsecurity28-dev-ed.develop.my.salesforce-scrt.com/embeddedservice/asyncresponder/mfe/bootstrap.min.js' 
-        onload='initEmbeddedMessaging()'>
+        }
+
+        // Dynamically inject script to prevent initial page-load HTTP 401 prompt
+        window.addEventListener('DOMContentLoaded', () => {
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = 'https://skyhighsecurity28-dev-ed.develop.my.salesforce-scrt.com/embeddedservice/asyncresponder/mfe/bootstrap.min.js';
+            script.onload = () => {
+                initEmbeddedMessaging();
+            };
+            script.onerror = () => {
+                document.getElementById('authError').style.display = 'block';
+            };
+            document.body.appendChild(script);
+        });
     </script>
 
 </body>
